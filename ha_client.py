@@ -212,9 +212,9 @@ class HomeAssistantClient:
                     sensor_name = entity_attrs['friendly_name']
                     sensor_state = attr['state']
                     entity_attr = {
-                        "unit_measure": unit_measur,
-                        "name": sensor_name,
-                        "state": sensor_state
+                        "unit_measure": unit_measur.replace("|", ":"),
+                        "name": sensor_name.replace("|", ":"),
+                        "state": sensor_state.replace("|", ":")
                     }
                     return entity_attr
         return None
