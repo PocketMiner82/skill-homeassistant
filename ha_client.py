@@ -180,6 +180,8 @@ class HomeAssistantClient:
                                 "attributes": state['attributes']}
                 except KeyError:
                     pass
+        if best_entity is not None:
+            best_entity["dev_name"] = best_entity["dev_name"].replace("|", ":")
         return best_entity
 
     def find_entity_attr(self, entity: str) -> dict:
