@@ -4,6 +4,7 @@ Home Assistant skill
 from os.path import join as pth_join
 
 from mycroft import MycroftSkill, intent_handler
+from mycroft.skills import skill_api_method
 from mycroft.messagebus.message import Message
 from mycroft.skills.core import FallbackSkill
 from mycroft.util import get_cache_directory
@@ -671,14 +672,14 @@ class HomeAssistantSkill(FallbackSkill):
                     sensor_state = quantity.value
 
         try:
-            value = float(sensor_state)
-            sensor_state = nice_number(value, lang=self.language)
+            value = str(float(sensor_state))
+            sensor_state = value.replace(".", ",") if self.lang.startswith("de") else value #nice_number(value, lang=self.language)
         except ValueError:
             pass
 
         if domain == "climate" and sensor_state != '':
-            current_temp = nice_number((float(attributes['current_temperature'])))
-            target_temp = nice_number((float(attributes['temperature'])))
+            current_temp = str(float(attributes['current_temperature'])).replace(".", ",") if self.lang.startswith("de") else float(attributes['current_temperature']) #nice_number(float(attributes['current_temperature']))
+            target_temp = str(float(attributes['temperature'])).replace(".", ",") if self.lang.startswith("de") else float(attributes['temperature']) #nice_number(float(attributes['temperature']))
             self.speak_dialog('homeassistant.sensor.thermostat', data={
                 "dev_name": sensor_name,
                 "value": sensor_state,
@@ -821,6 +822,12 @@ class HomeAssistantSkill(FallbackSkill):
             asked_question = True
         self.speak(answer, expect_response=asked_question)
         return True
+
+    @skill_api_method
+    def turn_on_off_amplifier(self, on=True):
+        ha_data = {'entity_id': 'switch.plug_2'}
+        self.ha_client.execute_service("homeassistant", f"turn_{'on' if on else 'off'}",
+            ha_data)
 
     def shutdown(self) -> None:
         """Remove fallback on exit."""
