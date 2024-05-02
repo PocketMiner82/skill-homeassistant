@@ -15,12 +15,22 @@ from requests.exceptions import (HTTPError, InvalidURL, RequestException,
 # pylint: disable=E0401
 from requests.packages.urllib3.exceptions import MaxRetryError
 
-from .ha_client import HomeAssistantClient, check_url
+from .ha_client import HomeAssistantClient, check_url, normalize_dialog
 
 __author__ = 'robconnolly, btotharye, nielstron'
 
 # Timeout time for HA requests
 TIMEOUT = 10
+
+
+def _get_nice_number(number: str) -> str:
+    """Convert number to nice formatted number"""
+    try:
+        return nice_number(float(number))
+    except TypeError:
+        return number
+    except ValueError:
+        return number
 
 
 # pylint: disable=R0912, W0105, W0511, W0233
@@ -34,6 +44,14 @@ class HomeAssistantSkill(FallbackSkill):
         self.enable_fallback = False
         self.tracker_file = ""
 
+    @normalize_dialog
+    def _speak_dialog(self, *arg, **kwarg) -> None:
+        """Speak dialog after a text normalization"""
+
+        self.log.info("Dialog")
+
+        self.speak_dialog(*arg, **kwarg)
+
     def _setup(self, force: bool = False) -> None:
         if self.settings is not None and (force or self.ha_client is None):
             # Check if user filled IP, port and Token in configuration
@@ -43,12 +61,12 @@ class HomeAssistantSkill(FallbackSkill):
             """Inform user if ip/url or token not or incorrectly filed"""
             if not ip_address:
 
-                self.speak_dialog('homeassistant.error.setup', data={
+                self._speak_dialog('homeassistant.error.setup', data={
                               "field": "I.P."})
                 return
 
             if not token:
-                self.speak_dialog('homeassistant.error.setup', data={
+                self._speak_dialog('homeassistant.error.setup', data={
                               "field": "token"})
                 return
 
@@ -59,7 +77,7 @@ class HomeAssistantSkill(FallbackSkill):
                 port_number = 8123
             except ValueError:
                 # String might be some rubbish (like '')
-                self.speak_dialog('homeassistant.error.setup', data={
+                self._speak_dialog('homeassistant.error.setup', data={
                               "field": "port"})
                 return
 
@@ -74,7 +92,7 @@ class HomeAssistantSkill(FallbackSkill):
             if self.ha_client.connected():
                 # Check if conversation component is loaded at HA-server
                 # and activate fallback accordingly (ha-server/api/components)
-                # TODO: enable other tools like dialogflow
+                # TODO: enable other tools like dialog flow
                 conversation_activated = self.ha_client.find_component(
                     'conversation'
                 )
@@ -105,7 +123,12 @@ class HomeAssistantSkill(FallbackSkill):
 
             with open(self.tracker_file, 'w', encoding='utf8') as voc_file:
                 voc_file.write('\n'.join(entities))
-            self.register_entity_file(self.tracker_file)
+
+            # Workaround: If https://github.com/MycroftAI/mycroft-core/pull/3101
+            # will be merged, next two lines could be changed to proper usage
+            # self.register_entity_file(self.tracker_file)
+            name = f"{self.skill_id}:tracker"
+            self.intent_service.register_padatious_entity(name, self.tracker_file)
 
     def initialize(self) -> None:
         """Initialize skill, set language and priority."""
@@ -121,7 +144,7 @@ class HomeAssistantSkill(FallbackSkill):
 
     def on_websettings_changed(self) -> None:
         """
-        Force a setting refresh after the websettings changed
+        Force a setting refresh after the web settings changed
         otherwise new settings will not be regarded.
         """
         self._force_setup()
@@ -138,14 +161,14 @@ class HomeAssistantSkill(FallbackSkill):
         """
         self._setup()
         if self.ha_client is None:
-            self.speak_dialog('homeassistant.error.setup')
+            self._speak_dialog('homeassistant.error.offline')
             return False
         # TODO if entity is 'all', 'any' or 'every' turn on
         # every single entity not the whole group
         ha_entity = self._handle_client_exception(self.ha_client.find_entity,
                                                   entity, domains)
         if ha_entity is None:
-            self.speak_dialog('homeassistant.error.device.unknown', data={
+            self._speak_dialog('homeassistant.error.device.unknown', data={
                               "dev_name": entity})
         return ha_entity
 
@@ -160,7 +183,7 @@ class HomeAssistantSkill(FallbackSkill):
         if ha_entity['state'] == 'unavailable':
             """Check if state is unavailable, if yes, inform user about it."""
 
-            self.speak_dialog('homeassistant.error.device.unavailable', data={
+            self._speak_dialog('homeassistant.error.device.unavailable', data={
                             "dev_name": ha_entity['dev_name']})
             """Return result to underlining function."""
             return False
@@ -174,27 +197,27 @@ class HomeAssistantSkill(FallbackSkill):
         try:
             return callback(*args, **kwargs)
         except Timeout:
-            self.speak_dialog('homeassistant.error.offline')
+            self._speak_dialog('homeassistant.error.offline')
         except (InvalidURL, URLRequired, MaxRetryError) as error:
             if error.request is None or error.request.url is None:
                 # There is no url configured
-                self.speak_dialog('homeassistant.error.needurl')
+                self._speak_dialog('homeassistant.error.needurl')
             else:
-                self.speak_dialog('homeassistant.error.invalidurl', data={
+                self._speak_dialog('homeassistant.error.invalidurl', data={
                                   'url': error.request.url})
         except SSLError:
-            self.speak_dialog('homeassistant.error.ssl')
+            self._speak_dialog('homeassistant.error.ssl')
         except HTTPError as error:
             # check if due to wrong password
             if error.response.status_code == 401:
-                self.speak_dialog('homeassistant.error.wrong_password')
+                self._speak_dialog('homeassistant.error.wrong_password')
             else:
-                self.speak_dialog('homeassistant.error.http', data={
+                self._speak_dialog('homeassistant.error.http', data={
                     'code': error.response.status_code,
                     'reason': error.response.reason})
         except (ConnectionError, RequestException) as exception:
             # TODO find a nice member of any exception to output
-            self.speak_dialog('homeassistant.error', data={
+            self._speak_dialog('homeassistant.error', data={
                     'url': exception.request.url})
 
         return False
@@ -308,7 +331,7 @@ class HomeAssistantSkill(FallbackSkill):
     @intent_handler('add.item.shopping.list.intent')
     def handle_shopping_list_intent(self, message: Message) -> None:
         """Handle add item to shopping list intent."""
-        self.log.debug("Add %s to the shoping list", message.data.get("entity"))
+        self.log.debug("Add %s to the shopping list", message.data.get("entity"))
         message.data["Entity"] = message.data.get("entity")
         self._handle_shopping_list(message)
 
@@ -317,7 +340,7 @@ class HomeAssistantSkill(FallbackSkill):
         entity = message.data["Entity"]
 
         if not self.gui.connected:
-            self.speak_dialog('homeassistant.error.no_gui')
+            self._speak_dialog('homeassistant.error.no_gui')
             return
 
         ha_entity = self._find_entity(entity, ['camera'])
@@ -358,7 +381,7 @@ class HomeAssistantSkill(FallbackSkill):
                 ha_data = {'entity_id': 'all'}
 
                 self.ha_client.execute_service(domain, "turn_{action}", ha_data)
-                self.speak_dialog(f'homeassistant.device.{action}', data=ha_entity)
+                self._speak_dialog(f'homeassistant.device.{action}', data=ha_entity)
                 return
         # TODO: need to figure out, if this indeed throws a KeyError
         except KeyError:
@@ -381,7 +404,7 @@ class HomeAssistantSkill(FallbackSkill):
             ]
         )
 
-        # Exit if entity not found or is unavailabe
+        # Exit if entity not found or is unavailable
         if not ha_entity or not self._check_availability(ha_entity):
             return
 
@@ -393,7 +416,7 @@ class HomeAssistantSkill(FallbackSkill):
         # self.set_context('Entity', ha_entity['dev_name'])
         if ha_entity['state'] == action:
             self.log.debug("Entity in requested state")
-            self.speak_dialog('homeassistant.device.already', data={
+            self._speak_dialog('homeassistant.device.already', data={
                 "dev_name": ha_entity['dev_name'], 'action': action})
         elif action == "toggle":
             self.ha_client.execute_service("homeassistant", "toggle",
@@ -402,15 +425,15 @@ class HomeAssistantSkill(FallbackSkill):
                 action = 'on'
             else:
                 action = 'off'
-            self.speak_dialog(f'homeassistant.device.{action}',
-                              data=ha_entity)
+            self._speak_dialog(f'homeassistant.device.{action}',
+                               data=ha_entity)
         elif action in ["on", "off"]:
-            self.speak_dialog(f'homeassistant.device.{action}',
-                              data=ha_entity)
+            self._speak_dialog(f'homeassistant.device.{action}',
+                               data=ha_entity)
             self.ha_client.execute_service("homeassistant", f"turn_{action}",
                                            ha_data)
         else:
-            self.speak_dialog('homeassistant.error.sorry')
+            self._speak_dialog('homeassistant.error.sorry')
             return
 
     def _handle_light_set(self, message: Message) -> None:
@@ -419,7 +442,7 @@ class HomeAssistantSkill(FallbackSkill):
         try:
             brightness_req = float(message.data["Brightnessvalue"])
             if brightness_req > 100 or brightness_req < 0:
-                self.speak_dialog('homeassistant.brightness.badreq')
+                self._speak_dialog('homeassistant.brightness.badreq')
         except KeyError:
             brightness_req = 10.0
         brightness_value = int(brightness_req / 100 * 255)
@@ -429,7 +452,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Brightness Percent: %s", brightness_percentage)
 
         ha_entity = self._find_entity(entity, ['group', 'light'])
-        # Exit if entity not found or is unavailabe
+        # Exit if entity not found or is unavailable
         if not ha_entity or not self._check_availability(ha_entity):
             return
 
@@ -443,8 +466,8 @@ class HomeAssistantSkill(FallbackSkill):
         # Set values for Mycroft reply
         ha_data['dev_name'] = ha_entity['dev_name']
         ha_data['brightness'] = brightness_req
-        self.speak_dialog('homeassistant.brightness.dimmed',
-                          data=ha_data)
+        self._speak_dialog('homeassistant.brightness.dimmed',
+                           data=ha_data)
 
         return
 
@@ -453,7 +476,7 @@ class HomeAssistantSkill(FallbackSkill):
         entity = message.data["Entity"]
         ha_data = {'name': entity}
         self.ha_client.execute_service("shopping_list", "add_item", ha_data)
-        self.speak_dialog("homeassistant.shopping.list")
+        self._speak_dialog("homeassistant.shopping.list")
 
     def _handle_open_close_actions(self, message: Message) -> None:
         """Handler for open and close actions."""
@@ -462,7 +485,7 @@ class HomeAssistantSkill(FallbackSkill):
 
         if self.voc_match(entity, "HomeAssistant"):
             if not self.gui.connected:
-                self.speak_dialog('homeassistant.error.no_gui')
+                self._speak_dialog('homeassistant.error.no_gui')
                 return
 
             if action == "open":
@@ -475,7 +498,7 @@ class HomeAssistantSkill(FallbackSkill):
             return
 
         ha_entity = self._find_entity(entity, ['cover'])
-        # Exit if entity not found or is unavailabe
+        # Exit if entity not found or is unavailable
         if not ha_entity or not self._check_availability(ha_entity):
             return
 
@@ -491,11 +514,11 @@ class HomeAssistantSkill(FallbackSkill):
                 return
 
             if action == "open":
-                self.speak_dialog("homeassistant.device.opening",
-                                  data=ha_entity)
+                self._speak_dialog("homeassistant.device.opening",
+                                   data=ha_entity)
             elif action == "close":
-                self.speak_dialog("homeassistant.device.closing",
-                                  data=ha_entity)
+                self._speak_dialog("homeassistant.device.closing",
+                                   data=ha_entity)
             return
 
         return
@@ -505,7 +528,7 @@ class HomeAssistantSkill(FallbackSkill):
         entity = message.data["Entity"]
 
         ha_entity = self._find_entity(entity, ['cover'])
-        # Exit if entity not found or is unavailabe
+        # Exit if entity not found or is unavailable
         if not ha_entity or not self._check_availability(ha_entity):
             return
 
@@ -520,8 +543,8 @@ class HomeAssistantSkill(FallbackSkill):
             if response.status_code != 200:
                 return
 
-            self.speak_dialog("homeassistant.device.stopped",
-                              data=ha_entity)
+            self._speak_dialog("homeassistant.device.stopped",
+                               data=ha_entity)
             return
         return
 
@@ -551,12 +574,12 @@ class HomeAssistantSkill(FallbackSkill):
 
         if action == "down":
             if ha_entity['state'] == "off":
-                self.speak_dialog('homeassistant.brightness.cantdim.off',
-                                  data=ha_entity)
+                self._speak_dialog('homeassistant.brightness.cantdim.off',
+                                   data=ha_entity)
             else:
                 light_attrs = self.ha_client.find_entity_attr(ha_entity['id'])
                 if light_attrs['unit_measure'] == "":
-                    self.speak_dialog(
+                    self._speak_dialog(
                         'homeassistant.brightness.cantdim.dimmable',
                         data=ha_entity)
                 else:
@@ -568,17 +591,17 @@ class HomeAssistantSkill(FallbackSkill):
                                                    ha_data)
                     ha_data['dev_name'] = ha_entity['dev_name']
                     ha_data['brightness'] = round(100 / max_brightness * ha_data['brightness'])
-                    self.speak_dialog('homeassistant.brightness.decreased',
-                                      data=ha_data)
+                    self._speak_dialog('homeassistant.brightness.decreased',
+                                       data=ha_data)
         elif action == "up":
             if ha_entity['state'] == "off":
-                self.speak_dialog(
+                self._speak_dialog(
                     'homeassistant.brightness.cantdim.off',
                     data=ha_entity)
             else:
                 light_attrs = self.ha_client.find_entity_attr(ha_entity['id'])
                 if light_attrs['unit_measure'] == "":
-                    self.speak_dialog(
+                    self._speak_dialog(
                         'homeassistant.brightness.cantdim.dimmable',
                         data=ha_entity)
                 else:
@@ -590,14 +613,14 @@ class HomeAssistantSkill(FallbackSkill):
                                                    ha_data)
                     ha_data['dev_name'] = ha_entity['dev_name']
                     ha_data['brightness'] = round(100 / max_brightness * ha_data['brightness'])
-                    self.speak_dialog('homeassistant.brightness.increased',
-                                      data=ha_data)
+                    self._speak_dialog('homeassistant.brightness.increased',
+                                       data=ha_data)
         else:
-            self.speak_dialog('homeassistant.error.sorry')
+            self._speak_dialog('homeassistant.error.sorry')
             return
 
     def _handle_automation(self, message: Message) -> None:
-        """Handler for triggering automations."""
+        """Handler for triggering automation."""
         entity = message.data["Entity"]
         self.log.debug("Entity: %s", entity)
         ha_entity = self._find_entity(
@@ -605,7 +628,7 @@ class HomeAssistantSkill(FallbackSkill):
             ['automation', 'scene', 'script']
         )
 
-        # Exit if entity not found or is unavailabe
+        # Exit if entity not found or is unavailable
         if not ha_entity or not self._check_availability(ha_entity):
             return
 
@@ -617,16 +640,16 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Triggered automation/scene/script: %s", ha_entity['id'])
         if "automation" in ha_entity['id']:
             self.ha_client.execute_service('automation', 'trigger', ha_data)
-            self.speak_dialog('homeassistant.automation.trigger',
-                              data={"dev_name": ha_entity['dev_name']})
+            self._speak_dialog('homeassistant.automation.trigger',
+                               data={"dev_name": ha_entity['dev_name']})
         elif "script" in ha_entity['id']:
-            self.speak_dialog('homeassistant.automation.trigger',
-                              data={"dev_name": ha_entity['dev_name']})
+            self._speak_dialog('homeassistant.automation.trigger',
+                               data={"dev_name": ha_entity['dev_name']})
             self.ha_client.execute_service("script", "turn_on",
                                            data=ha_data)
         elif "scene" in ha_entity['id']:
-            self.speak_dialog('homeassistant.scene.on',
-                              data=ha_entity)
+            self._speak_dialog('homeassistant.scene.on',
+                               data=ha_entity)
             self.ha_client.execute_service("scene", "turn_on",
                                            data=ha_data)
 
@@ -657,7 +680,23 @@ class HomeAssistantSkill(FallbackSkill):
         return unit
 
 
-    def _handle_sensor(self, message: Message) -> None:
+    def _dialog_sensor_climate(self, name: str, state: str, attr: dict) -> None:
+        """Handle dialogs for sensor climate."""
+        current_temp = _get_nice_number(attr['current_temperature'])
+        target_temp = _get_nice_number(attr['temperature'])
+        if current_temp:
+            self._speak_dialog('homeassistant.sensor.thermostat.current', data={
+                "dev_name": name,
+                "value": state,
+                "current_temp": current_temp,
+                "targeted_temp": target_temp})
+        else:
+            self._speak_dialog('homeassistant.sensor.thermostat', data={
+                "dev_name": name,
+                "value": state,
+                "targeted_temp": target_temp})
+
+    def _handle_sensor(self, message) -> None:
         """Handler sensors reading"""
         entity = message.data["Entity"]
         self.log.debug("Entity: %s", entity)
@@ -674,7 +713,7 @@ class HomeAssistantSkill(FallbackSkill):
             ]
         )
 
-        # Exit if entity not found or is unavailabe
+        # Exit if entity not found or is unavailable
         if not ha_entity or not self._check_availability(ha_entity):
             return
 
@@ -724,8 +763,8 @@ class HomeAssistantSkill(FallbackSkill):
                 sensor_state
             )
         elif domain == "cover":
-            self.speak_dialog(f'homeassistant.device.{sensor_state}', data={
-                "dev_name": sensor_name})
+            self._speak_dialog(f'homeassistant.device.{sensor_state}', data={
+                 "dev_name": sensor_name})
 
             sensor_states = self.translate_namedvalues(
                 'homeassistant.sensor.cover.state')
@@ -740,13 +779,13 @@ class HomeAssistantSkill(FallbackSkill):
             if attributes.get('device_class') in sensor_states:
                 sensor_state = sensor_states[attributes['device_class']]
 
-            self.speak_dialog('homeassistant.sensor.binary_sensor', data={
+            self._speak_dialog('homeassistant.sensor.binary_sensor', data={
                 "dev_name": sensor_name,
                 "value": sensor_state})
 
             self._display_sensor_dialog(sensor_name, sensor_state)
         else:
-            self.speak_dialog('homeassistant.sensor', data={
+            self._speak_dialog('homeassistant.sensor', data={
                 "dev_name": sensor_name,
                 "value": sensor_state,
                 "unit": sensor_unit})
@@ -768,7 +807,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Entity: %s", entity)
 
         ha_entity = self._find_entity(entity, ['device_tracker'])
-        # Exit if entity not found or is unavailabe
+        # Exit if entity not found or is unavailable
         if not ha_entity or not self._check_availability(ha_entity):
             return
 
@@ -778,9 +817,9 @@ class HomeAssistantSkill(FallbackSkill):
         entity = ha_entity['id']
         dev_name = ha_entity['dev_name']
         dev_location = ha_entity['state']
-        self.speak_dialog('homeassistant.tracker.found',
-                          data={'dev_name': dev_name,
-                                'location': dev_location})
+        self._speak_dialog('homeassistant.tracker.found',
+                           data={'dev_name': dev_name,
+                                 'location': dev_location})
 
     def _handle_set_thermostat(self, message: Message) -> None:
         """Handler for setting thermostats."""
@@ -791,7 +830,7 @@ class HomeAssistantSkill(FallbackSkill):
         self.log.debug("Temperature: %s", temperature)
 
         ha_entity = self._find_entity(entity, ['climate'])
-        # Exit if entity not found or is unavailabe
+        # Exit if entity not found or is unavailable
         if not ha_entity or not self._check_availability(ha_entity):
             return
 
@@ -806,7 +845,7 @@ class HomeAssistantSkill(FallbackSkill):
             data=climate_data
         )
 
-        self.speak_dialog(
+        self._speak_dialog(
             'homeassistant.set.thermostat',
             data={
                 "dev_name": climate_attr['name'],
@@ -835,7 +874,7 @@ class HomeAssistantSkill(FallbackSkill):
             return False
         self._setup()
         if self.ha_client is None:
-            self.speak_dialog('homeassistant.error.setup')
+            self._speak_dialog('homeassistant.error.offline')
             return False
         # pass message to HA-server
         response = self._handle_client_exception(
