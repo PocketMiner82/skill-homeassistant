@@ -181,7 +181,7 @@ class HomeAssistantClient:
                 except KeyError:
                     pass
         if best_entity is not None:
-            best_entity["dev_name"] = best_entity["dev_name"].replace("|", ":")
+            best_entity["dev_name"] = str(best_entity["dev_name"]).replace("|", ":")
         return best_entity
 
     def find_entity_attr(self, entity: str) -> dict:
@@ -214,9 +214,9 @@ class HomeAssistantClient:
                     sensor_name = entity_attrs['friendly_name']
                     sensor_state = attr['state']
                     entity_attr = {
-                        "unit_measure": unit_measur.replace("|", ":"),
-                        "name": sensor_name.replace("|", ":"),
-                        "state": sensor_state.replace("|", ":")
+                        "unit_measure": str(unit_measur).replace("|", ":"),
+                        "name": str(sensor_name).replace("|", ":"),
+                        "state": str(sensor_state).replace("|", ":")
                     }
                     return entity_attr
         return None

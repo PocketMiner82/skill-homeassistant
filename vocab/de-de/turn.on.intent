@@ -1,5 +1,3 @@
-(den|die|das|) {entity} (einschalten|anschalten)
-kannst du (den|die|das|) {entity} (bitte|) (einschalten|anschalten)
-Kannst du (den|die|das|) {entity} (einschalten|anschalten) (bitte|)
-ich möchte (gerne|) (den|die|das|) (jetzt|) {entity} (bitte|) (einschalten|anschalten)
-schalte {entity} (ein|an)
+{entity} (bitte|) (ein|an|einschalten|einschaltet|einschalte|einschalter|einmach|einschalt|einmachen|einmache|einmacht|einmacher|einstellen|einstelle|einstell|einstellt|einsteller|anschalten|anschaltet|anschalte|anschalter|anmach|anschalt|anmachen|anmache|anmacht|anmacher|anstellen|anstelle|anstell|anstellt|ansteller) (bitte|)
+{entity} (bitte|) (ein|an) (schalten|schaltet|schalte|schalter|schalt|machen|mache|macht|macher|mach|stellen|stelle|stell|stellt|steller|) (bitte|)
+(schalten|schaltet|schalte|schalter|schalt|machen|mache|macht|macher|mach|stellen|stelle|stell|stellt|steller) (bitte|) (den|die|das|) {entity} (bitte|) (an|ein) (bitte|)

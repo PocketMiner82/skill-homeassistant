@@ -28,7 +28,7 @@ class HomeAssistantSkill(FallbackSkill):
     """Main skill class"""
 
     def __init__(self) -> None:
-        MycroftSkill.__init__(self)
+        #MycroftSkill.__init__(self)
         super().__init__(name="HomeAssistantSkill")
         self.ha_client = None
         self.enable_fallback = False
@@ -343,12 +343,15 @@ class HomeAssistantSkill(FallbackSkill):
 
         # Handle turn on/off all intent
         try:
+            domain = None
             if self.voc_match(entity, "all_lights"):
                 domain = "light"
             elif self.voc_match(entity, "all_switches"):
                 domain = "switch"
-            else:
-                domain = None
+            elif self.voc_match(entity, "Light"): #entity.strip() == "Licht" or entity.strip() == "Lichter" or entity.strip() == "Lampe" or entity.strip() == "Leuchte":
+            	entity = "Licht Technikzimmer"
+
+            self.log.info(entity)
 
             if domain is not None:
                 ha_entity = {'dev_name': entity}
@@ -627,6 +630,33 @@ class HomeAssistantSkill(FallbackSkill):
             self.ha_client.execute_service("scene", "turn_on",
                                            data=ha_data)
 
+    def parse_quantity(self, state, unit):
+        try:
+            float(state)
+            if unit == "W":
+                return "Watt"
+            elif unit == "kW":
+                return "Kilowatt"
+            elif unit == "Wh":
+                return "Wattstunden"
+            elif unit == "kWh":
+                return "Kilowattstunden"
+            elif unit == "%":
+                return "Prozent"
+            elif unit == "V":
+                return "Volt"
+            elif unit == "A":
+                return "Ampere"
+            elif unit == "°C":
+                return "Grad Celsius"
+            elif unit == "°F":
+                return "Grad Fahrenheit"
+        except ValueError:
+            pass
+
+        return unit
+
+
     def _handle_sensor(self, message: Message) -> None:
         """Handler sensors reading"""
         entity = message.data["Entity"]
@@ -663,13 +693,15 @@ class HomeAssistantSkill(FallbackSkill):
         # extract unit for correct pronunciation
         # this is fully optional
 
-        if unit_measurement != '':
-            quantity = parser.parse(f'{sensor_name} is {sensor_state} {sensor_unit}')
-            if len(quantity) > 0:
-                quantity = quantity[0]
-                if quantity.unit.name != "dimensionless":
-                    sensor_unit = quantity.unit.name
-                    sensor_state = quantity.value
+        #if unit_measurement != '':
+        #    quantity = parser.parse(f'{sensor_name} is {sensor_state} {sensor_unit}')
+        #    if len(quantity) > 0:
+        #        quantity = quantity[0]
+        #        if quantity.unit.name != "dimensionless":
+        #            sensor_unit = quantity.unit.name
+        #            sensor_state = quantity.value
+
+        sensor_unit = self.parse_quantity(sensor_state, sensor_unit)
 
         try:
             value = str(float(sensor_state))
@@ -798,6 +830,7 @@ class HomeAssistantSkill(FallbackSkill):
         Returns:
             True/False state of fallback registration
         """
+        return False
         if not self.enable_fallback:
             return False
         self._setup()
@@ -835,6 +868,6 @@ class HomeAssistantSkill(FallbackSkill):
         super().shutdown()
 
 
-def create_skill():
+def create_skill(bus=None, skill_id=None):
     """Create skill from main class."""
     return HomeAssistantSkill()
