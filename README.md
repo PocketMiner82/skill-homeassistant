@@ -1,6 +1,14 @@
 # <img src='docs/home-assistant.png' card_color='#000000' width='50' height='50' style='vertical-align:bottom'/> Home Assistant
 Awaken your home - Control Home Assistant
 
+## About this fork
+This fork  provides a better experience for german users.
+Also, if you say "turn the light on" (or "schalte das licht an"), this skill will use the entity defined [here](https://github.com/PocketMiner82/skill-homeassistant/blob/20.08/__init__.py#L375) to turn on the light
+
+#### TODO:
+- [ ] make the room light entity configurable
+- [ ] rewrite the skill to an OVOS skill
+
 ## About
 [Home Assistant](https://www.home-assistant.io/) lets you control all your smart devices in a single easy to use interface. This skill uses the open source Home Assistant's APIs to control devices and entities. Control your lights, garage door, thermostats and more using your voice!
 
