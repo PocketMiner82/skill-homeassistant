@@ -128,7 +128,7 @@ class HomeAssistantSkill(FallbackSkill):
             # will be merged, next two lines could be changed to proper usage
             # self.register_entity_file(self.tracker_file)
             name = f"{self.skill_id}:tracker"
-            self.intent_service.register_padatious_entity(name, self.tracker_file)
+            self.intent_service.register_padatious_entity(name, self.tracker_file, lang=self.lang)
 
     def initialize(self) -> None:
         """Initialize skill, set language and priority."""
