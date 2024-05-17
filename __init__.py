@@ -367,11 +367,11 @@ class HomeAssistantSkill(FallbackSkill):
         # Handle turn on/off all intent
         try:
             domain = None
-            if self.voc_match(entity, "all_lights"):
+            if self.voc_match(entity.lower(), "all_lights"):
                 domain = "light"
-            elif self.voc_match(entity, "all_switches"):
+            elif self.voc_match(entity.lower(), "all_switches"):
                 domain = "switch"
-            elif self.voc_match(entity, "Light"): #entity.strip() == "Licht" or entity.strip() == "Lichter" or entity.strip() == "Lampe" or entity.strip() == "Leuchte":
+            elif self.voc_match(entity.lower(), "Light"): #entity.strip() == "Licht" or entity.strip() == "Lichter" or entity.strip() == "Lampe" or entity.strip() == "Leuchte":
             	entity = "Licht Technikzimmer"
 
             self.log.info(entity)
