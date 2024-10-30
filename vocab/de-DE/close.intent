@@ -1,0 +1,5 @@
+(den|die|das|) {Entity} schließen
+ (den|die|das|) {Entity} (bitte|) schließen
+ (den|die|das|) {Entity} schließen (bitte|)
+{Entity} (jetzt|) (bitte|) schließen
+schließe (den|die|das|) {Entity}

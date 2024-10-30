@@ -1,0 +1,3 @@
+{entity} (bitte|) (aus|ausschalten|ausschaltet|ausschalte|ausschalter|ausmach|ausschalt|ausmachen|ausmache|ausmacht|ausmacher|ausstellen|ausstelle|ausstell|ausstellt|aussteller|abschalten|abschaltet|abschalte|abschalter|abmach|abschalt|abmachen|abmache|abmacht|abmacher|abstellen|abstelle|abstell|abstellt|absteller)
+{entity} (bitte|) (aus|ab) (schalten|schaltet|schalte|schalter|schalt|machen|mache|macht|macher|mach|stellen|stelle|stell|stellt|steller|) (bitte|)
+(schalten|schaltet|schalte|schalter|schalt|machen|mache|macht|macher|mach|stellen|stelle|stell|stellt|steller) (bitte|) (den|die|das|) {entity} (bitte|) (aus|ab) (bitte|)

@@ -3,12 +3,11 @@ Home Assistant skill
 """  # pylint: disable=C0103
 from os.path import join as pth_join
 
-from mycroft import MycroftSkill, intent_handler
-from mycroft.skills import skill_api_method
-from mycroft.messagebus.message import Message
-from mycroft.skills.core import FallbackSkill
-from mycroft.util import get_cache_directory
-from mycroft.util.format import nice_number
+from ovos_workshop.decorators import intent_handler, skill_api_method
+from ovos_workshop.skills import OVOSSkill
+from ovos_bus_client import Message
+from ovos_utils.file_utils import get_cache_directory
+from lingua_franca.format import nice_number
 from quantulum3 import parser
 from requests.exceptions import (HTTPError, InvalidURL, RequestException,
                                  SSLError, Timeout, URLRequired)
@@ -34,15 +33,18 @@ def _get_nice_number(number: str) -> str:
 
 
 # pylint: disable=R0912, W0105, W0511, W0233
-class HomeAssistantSkill(FallbackSkill):
+class HomeAssistantSkill(OVOSSkill):
     """Main skill class"""
 
-    def __init__(self) -> None:
-        #MycroftSkill.__init__(self)
-        super().__init__(name="HomeAssistantSkill")
+    def __init__(self, *args, **kwargs):
+        """The __init__ method is called when the Skill is first constructed.
+        Note that self.bus, self.skill_id, self.settings, and
+        other base class settings are only available after the call to super().
+        """
         self.ha_client = None
-        self.enable_fallback = False
         self.tracker_file = ""
+
+        super().__init__(*args, **kwargs)
 
     @normalize_dialog
     def _speak_dialog(self, *arg, **kwarg) -> None:
@@ -90,16 +92,6 @@ class HomeAssistantSkill(FallbackSkill):
 
             self.ha_client = HomeAssistantClient(config)
             if self.ha_client.connected():
-                # Check if conversation component is loaded at HA-server
-                # and activate fallback accordingly (ha-server/api/components)
-                # TODO: enable other tools like dialog flow
-                conversation_activated = self.ha_client.find_component(
-                    'conversation'
-                )
-                if conversation_activated:
-                    self.enable_fallback = \
-                        self.settings.get('enable_fallback')
-
                 # Register tracker entities
                 self._register_tracker_entities()
 
@@ -135,8 +127,6 @@ class HomeAssistantSkill(FallbackSkill):
         # pylint: disable=W0201
         self.language = self.config_core.get('lang')
 
-        # Needs higher priority than general fallback skills
-        self.register_fallback(self.handle_fallback, 2)
         # Check and then monitor for credential changes
         # pylint: disable=W0201
         self.settings_change_callback = self.on_websettings_changed
@@ -861,52 +851,8 @@ class HomeAssistantSkill(FallbackSkill):
         self.gui["sensorDescription"] = description
         self.gui.show_page("sensors.qml", override_idle=15)
 
-    def handle_fallback(self, message: Message) -> bool:
-        """
-        Handler for direct fallback to Home Assistants
-        conversation module.
-
-        Returns:
-            True/False state of fallback registration
-        """
-        return False
-        if not self.enable_fallback:
-            return False
-        self._setup()
-        if self.ha_client is None:
-            self._speak_dialog('homeassistant.error.offline')
-            return False
-        # pass message to HA-server
-        response = self._handle_client_exception(
-            self.ha_client.engage_conversation,
-            message.data.get('utterance'))
-        if not response:
-            return False
-        # default non-parsing answer: "Sorry, I didn't understand that"
-        answer = response.get('speech')
-        if not answer or answer == "Sorry, I didn't understand that":
-            return False
-
-        asked_question = False
-        # TODO: maybe enable conversation here if server asks sth like
-        # "In which room?" => answer should be directly passed to this skill
-        if answer.endswith("?"):
-            asked_question = True
-        self.speak(answer, expect_response=asked_question)
-        return True
-
     @skill_api_method
     def turn_on_off_amplifier(self, on=True):
         ha_data = {'entity_id': 'switch.plug_2'}
         self.ha_client.execute_service("homeassistant", f"turn_{'on' if on else 'off'}",
             ha_data)
-
-    def shutdown(self) -> None:
-        """Remove fallback on exit."""
-        self.remove_fallback(self.handle_fallback)
-        super().shutdown()
-
-
-def create_skill(bus=None, skill_id=None):
-    """Create skill from main class."""
-    return HomeAssistantSkill()
