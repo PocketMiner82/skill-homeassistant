@@ -7,7 +7,7 @@ Also, if you say "schalte das licht an", this skill will use the entity defined 
 
 #### TODO:
 - [ ] make the room light entity configurable
-- [ ] rewrite the skill to an OVOS skill
+- [X] rewrite the skill to an OVOS skill
 
 ## About
 [Home Assistant](https://www.home-assistant.io/) lets you control all your smart devices in a single easy to use interface. This skill uses the open source Home Assistant's APIs to control devices and entities. Control your lights, garage door, thermostats and more using your voice!
