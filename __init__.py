@@ -148,8 +148,6 @@ class HomeAssistantSkill(OVOSSkill):
         return self._match_yes_no(response) != None
     
     def _save_entity_match(self, entity_intent, entity_id):
-        self.log.info(self.file_system.path)
-
         try:
             with self.file_system.open("entity_matches.json", "r") as f:
                 entity_matches = json.load(f)
