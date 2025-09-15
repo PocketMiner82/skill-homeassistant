@@ -230,7 +230,7 @@ class HomeAssistantSkill(OVOSSkill):
         if ha_entity and ha_entity["best_score"] < 80:
             resp = ""
             while not self._is_valid_yes_no(resp):
-                resp = self.get_response("homeassistant.ask.entity_name_confirmation", {"entity_name": ha_entity["dev_name"]})
+                resp = self.get_response("homeassistant.ask.entity_name_confirmation", {"entity_name": ha_client._normalize_string(ha_entity["dev_name"]) })
             
             if self._match_yes_no(resp):
                 self._save_entity_match(entity, ha_entity["id"])
