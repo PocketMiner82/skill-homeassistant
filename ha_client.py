@@ -188,8 +188,7 @@ class HomeAssistantClient:
                             best_score = score
                             best_entity = {
                                 "id": state['entity_id'],
-                                "dev_name": state['attributes']
-                                ['friendly_name'],
+                                "dev_name": state['attributes']['friendly_name'],
                                 "state": state['state'],
                                 "best_score": best_score,
                                 "attributes": state['attributes']}
@@ -200,8 +199,7 @@ class HomeAssistantClient:
                             best_score = score
                             best_entity = {
                                 "id": state['entity_id'],
-                                "dev_name": state['attributes']
-                                ['friendly_name'],
+                                "dev_name": state['attributes']['friendly_name'],
                                 "state": state['state'],
                                 "best_score": best_score,
                                 "attributes": state['attributes']}
@@ -209,6 +207,7 @@ class HomeAssistantClient:
                     pass
         if best_entity is not None:
             best_entity["dev_name"] = str(best_entity["dev_name"])
+
         return best_entity
 
     def find_entity_attr(self, entity: str) -> dict:

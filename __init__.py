@@ -7,6 +7,8 @@ from ovos_workshop.decorators import intent_handler, skill_api_method
 from ovos_workshop.skills import OVOSSkill
 from ovos_bus_client import Message
 from ovos_utils.file_utils import get_cache_directory
+from ovos_yes_no_solver import YesNoSolver
+
 from lingua_franca.format import nice_number
 from quantulum3 import parser
 from requests.exceptions import (HTTPError, InvalidURL, RequestException,
@@ -15,6 +17,8 @@ from requests.exceptions import (HTTPError, InvalidURL, RequestException,
 from requests.packages.urllib3.exceptions import MaxRetryError
 
 from .ha_client import HomeAssistantClient, check_url, normalize_dialog
+
+import json
 
 __author__ = 'robconnolly, btotharye, nielstron'
 
@@ -43,15 +47,13 @@ class HomeAssistantSkill(OVOSSkill):
         """
         self.ha_client = None
         self.tracker_file = ""
+        self.yes_no_solver = YesNoSolver()
 
         super().__init__(*args, **kwargs)
 
     @normalize_dialog
     def _speak_dialog(self, *arg, **kwarg) -> None:
         """Speak dialog after a text normalization"""
-
-        self.log.info("Dialog")
-
         self.speak_dialog(*arg, **kwarg)
 
     def _setup(self, force: bool = False) -> None:
@@ -139,6 +141,62 @@ class HomeAssistantSkill(OVOSSkill):
         """
         self._force_setup()
 
+    def _match_yes_no(self, response: str) -> bool:
+        return self.yes_no_solver.match_yes_or_no(response, self.language)
+
+    def _is_valid_yes_no(self, response: str) -> bool:
+        return self._match_yes_no(response) != None
+    
+    def _save_entity_match(self, entity_intent, entity_id):
+        self.log.info(self.file_system.path)
+
+        try:
+            with self.file_system.open("entity_matches.json", "r") as f:
+                entity_matches = json.load(f)
+
+            entity_matches[entity_intent] = entity_id
+        except Exception as e:
+            self.log.debug(f"Couldn't read previous entity matches: {str(e)}")
+            self.log.debug("Attempting to create new file...")
+            entity_matches = {entity_intent: entity_id}
+        
+        try:
+            with self.file_system.open("entity_matches.json", "w") as f:
+                json.dump(entity_matches, f, indent=2)
+        except Exception as e:
+            self.log.error(f"Failed to save entity_matches.json file {str(e)}")
+
+    def _try_get_previous_entity_match(self, entity_intent):
+        try:
+            with self.file_system.open("entity_matches.json", "r") as f:
+                entity_matches = json.load(f)
+
+            if entity_intent in entity_matches:
+                return entity_matches[entity_intent]
+        except Exception as e:
+            self.log.debug(f"Couldn't read entity matches: {str(e)}")
+            pass
+
+        return entity_intent
+    
+    def _try_remove_entity_match(self, entity_intent):
+        try:
+            with self.file_system.open("entity_matches.json", "r") as f:
+                entity_matches = json.load(f)
+
+            if entity_intent in entity_matches:
+                del entity_matches[entity_intent]
+        except Exception as e:
+            self.log.debug(f"Can't remove old match: {str(e)}")
+            self.log.debug("Attempting to create new empty file...")
+            entity_matches = {}
+
+        try:
+            with self.file_system.open("entity_matches.json", "w") as f:
+                json.dump(entity_matches, f, indent=2)
+        except Exception as e:
+            self.log.error(f"Failed to save entity_matches.json file: {str(e)}")
+
     # Try to find an entity on the HAServer
     # Creates dialogs for errors and speaks them
     # Returns None if nothing was found
@@ -153,10 +211,34 @@ class HomeAssistantSkill(OVOSSkill):
         if self.ha_client is None:
             self._speak_dialog('homeassistant.error.offline')
             return False
+
         # TODO if entity is 'all', 'any' or 'every' turn on
         # every single entity not the whole group
-        ha_entity = self._handle_client_exception(self.ha_client.find_entity,
-                                                  entity, domains)
+
+        if self.voc_match(entity.lower(), "Light", exact=True):
+            entity = "Licht Technikzimmer"
+
+        # first try with previous entity matches
+        prev_entity_match = self._try_get_previous_entity_match(entity)
+        ha_entity = self._handle_client_exception(self.ha_client.find_entity, prev_entity_match, domains)
+
+        # if failed, try again without using previous match, maybe user deleted entities on homeassistant server
+        if (ha_entity == None or ha_entity["best_score"] < 80) and prev_entity_match != entity:
+            ha_entity = self._handle_client_exception(self.ha_client.find_entity, entity, domains)
+
+            # also delete our previous match, since it is no longer valid
+            self._try_remove_entity_match(entity)
+
+        if ha_entity and ha_entity["best_score"] < 80:
+            resp = ""
+            while not self._is_valid_yes_no(resp):
+                resp = self.get_response("homeassistant.ask.entity_name_confirmation", {"entity_name": ha_entity["dev_name"]})
+            
+            if self._match_yes_no(resp):
+                self._save_entity_match(entity, ha_entity["id"])
+            else:
+                ha_entity = None
+
         if ha_entity is None:
             self._speak_dialog('homeassistant.error.device.unknown', data={
                               "dev_name": entity})
@@ -357,14 +439,10 @@ class HomeAssistantSkill(OVOSSkill):
         # Handle turn on/off all intent
         try:
             domain = None
-            if self.voc_match(entity.lower(), "all_lights"):
+            if self.voc_match(entity.lower(), "all_lights", exact=True):
                 domain = "light"
-            elif self.voc_match(entity.lower(), "all_switches"):
+            elif self.voc_match(entity.lower(), "all_switches", exact=True):
                 domain = "switch"
-            elif self.voc_match(entity.lower(), "Light"): #entity.strip() == "Licht" or entity.strip() == "Lichter" or entity.strip() == "Lampe" or entity.strip() == "Leuchte":
-            	entity = "Licht Technikzimmer"
-
-            self.log.info(entity)
 
             if domain is not None:
                 ha_entity = {'dev_name': entity}

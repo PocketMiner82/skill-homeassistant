@@ -4,3 +4,4 @@ requests
 quantulum3
 responses<=0.10.15
 ipaddress
+ovos-solver-yes-no-plugin
