@@ -1,0 +1,14 @@
+{
+  "skill_id": "skill-homeassistant.pocketminer82",
+  "source": "https://github.com/PocketMiner82/skill-homeassistant",
+  "name": "Home Assistant Skill",
+  "description": "Controls a Home Assistant instance.",
+  "examples": [
+    "Turn on the light.",
+    "What is the current state of my battery?",
+    "Set the light to 100 percent brightness."
+  ],
+  "tags": [
+    "IoT"
+  ]
+}
